@@ -17,6 +17,8 @@ Instalación de dependencias:
 pip install -r requirements.txt
 ```
 
+La base de datos SQLite se crea automáticamente al iniciar la aplicación.
+
 ## Uso
 
 Ejecutar el servidor con **uvicorn**:
@@ -33,4 +35,4 @@ uvicorn main:app --reload
 - `GET /results` - Obtener el conteo actual de votos.
 - `WS /ws` - WebSocket para recibir actualizaciones en tiempo real.
 
-Todos los datos se mantienen en memoria y se pierden al reiniciar la aplicación.
+Los datos se almacenan de forma persistente en un archivo `database.db` mediante **SQLModel**.
