@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from pydantic import BaseModel
 from typing import Dict
+import asyncio
 
 app = FastAPI()
 
@@ -17,6 +18,7 @@ class Candidate(BaseModel):
 members: Dict[str, Member] = {}
 candidates: Dict[int, Candidate] = {}
 votes: Dict[str, int] = {}
+lock = asyncio.Lock()
 
 class ConnectionManager:
     def __init__(self):
@@ -60,21 +62,23 @@ async def add_member(acting_user: str, member: Member):
 @app.post("/candidates")
 async def add_candidate(acting_user: str, candidate: Candidate):
     require_role(acting_user, ["admin", "manager"])
-    if candidate.id in candidates:
-        raise HTTPException(status_code=400, detail="Candidate id exists")
-    candidates[candidate.id] = candidate
+    async with lock:
+        if candidate.id in candidates:
+            raise HTTPException(status_code=400, detail="Candidate id exists")
+        candidates[candidate.id] = candidate
     await manager.broadcast({"event": "candidate_added", "candidate": candidate.dict()})
 
 @app.post("/vote")
 async def vote(acting_user: str, candidate_id: int):
     voter = require_role(acting_user, ["admin", "manager", "user"])
-    if acting_user in votes:
-        raise HTTPException(status_code=400, detail="User already voted")
-    candidate = candidates.get(candidate_id)
-    if not candidate:
-        raise HTTPException(status_code=404, detail="Candidate not found")
-    candidate.votes += 1
-    votes[acting_user] = candidate_id
+    async with lock:
+        if acting_user in votes:
+            raise HTTPException(status_code=400, detail="User already voted")
+        candidate = candidates.get(candidate_id)
+        if not candidate:
+            raise HTTPException(status_code=404, detail="Candidate not found")
+        candidate.votes += 1
+        votes[acting_user] = candidate_id
     await manager.broadcast({"event": "vote", "candidate_id": candidate_id, "votes": candidate.votes})
     return {"candidate": candidate.name, "votes": candidate.votes}
 
